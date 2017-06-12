@@ -32,6 +32,10 @@ public class MainActivity extends Activity { // Elementos a mostrar en la lista
                     case 2:
                         startActivity(new Intent(MainActivity.this, Historial.class));
                         break;
+
+                    case 3:
+                        startActivity(new Intent(MainActivity.this, Jugadores.class));
+                        break;
                     case 4:
                         startActivity(new Intent(MainActivity.this, Pasos.class));
                         break;
