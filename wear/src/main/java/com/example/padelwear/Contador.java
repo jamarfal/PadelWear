@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.DismissOverlayView;
+import android.support.wearable.view.SwipeDismissFrameLayout;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -52,6 +53,14 @@ public class Contador extends WearableActivity {
         super.onCreate(savedInstanceState);
         setAmbientEnabled();
         setContentView(R.layout.contador);
+
+        SwipeDismissFrameLayout root = (SwipeDismissFrameLayout) findViewById(R.id.swipe_dismiss_root);
+        root.addCallback(new SwipeDismissFrameLayout.Callback() {
+            @Override
+            public void onDismissed(SwipeDismissFrameLayout layout) {
+                Contador.this.finish();
+            }
+        });
 
         apiClient = new GoogleApiClient.Builder(this).addApi(Wearable.API).build();
 
