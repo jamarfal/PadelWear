@@ -19,7 +19,7 @@ public class Puntuacion {
         this.suPuntuacion = suPuntuacion;
         this.misJuegos = misJuegos;
         this.susJuegos = susJuegos;
-        this.misSets = susSets;
+        this.misSets = misSets;
         this.susSets = susSets;
     }
 

@@ -1,11 +1,10 @@
 package com.example.padelwear;
 
-import android.app.Activity;
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Vibrator;
+import android.support.annotation.Nullable;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.DismissOverlayView;
 import android.support.wearable.view.SwipeDismissFrameLayout;
@@ -13,13 +12,22 @@ import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.example.comun.DireccionesGestureDetector;
 import com.example.comun.Partida;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
@@ -28,18 +36,29 @@ import com.google.android.gms.wearable.Wearable;
  * Created by jamarfal on 6/6/17.
  */
 
-public class Contador extends WearableActivity {
+public class Contador extends WearableActivity implements DataApi.DataListener, GoogleApiClient.ConnectionCallbacks {
+    private static final String WEAR_ARRANCAR_ACTIVIDAD = "/arrancar_actividad";
     private Typeface fuenteNormal = Typeface.create("sans-serif", 0);
     private Typeface fuenteFina = Typeface.create("sans-serif-thin", 0);
     private Partida partida;
-    private TextView misPuntos, misJuegos, misSets, susPuntos, susJuegos, susSets;
+    private TextView misPuntosTextView, misJuegosTextView, misSetsTextView, susPuntosTextView, susJuegosTextView, susSetsTextView;
     private Vibrator vibrador;
     private long[] vibrEntrada = {0l, 500};
     private long[] vibrDeshacer = {0l, 500, 500, 500};
     private DismissOverlayView dismissOverlay;
     private RelativeLayout timeContainer;
 
+
+    private String misPuntos;
+    private String misJuegos;
+    private String misSets;
+    private String susPuntos;
+    private String susJuegos;
+    private String susSets;
+
+
     private GoogleApiClient apiClient;
+    public static final String KEY_PROCESA_STRING = "procesa_string";
     private static final String WEAR_PUNTUACION = "/puntuacion";
     private static final String KEY_MIS_PUNTOS = "com.example.padel.key.mis_puntos";
     private static final String KEY_MIS_JUEGOS = "com.example.padel.key.mis_juegos";
@@ -62,7 +81,7 @@ public class Contador extends WearableActivity {
             }
         });
 
-        apiClient = new GoogleApiClient.Builder(this).addApi(Wearable.API).build();
+        apiClient = new GoogleApiClient.Builder(this).addApi(Wearable.API).addConnectionCallbacks(this).build();
 
         partida = new Partida();
 
@@ -71,12 +90,12 @@ public class Contador extends WearableActivity {
         dismissOverlay.showIntroIfNecessary();
 
         vibrador = (Vibrator) this.getSystemService(Context.VIBRATOR_SERVICE);
-        misPuntos = (TextView) findViewById(R.id.misPuntos);
-        susPuntos = (TextView) findViewById(R.id.susPuntos);
-        misJuegos = (TextView) findViewById(R.id.misJuegos);
-        susJuegos = (TextView) findViewById(R.id.susJuegos);
-        misSets = (TextView) findViewById(R.id.misSets);
-        susSets = (TextView) findViewById(R.id.susSets);
+        misPuntosTextView = (TextView) findViewById(R.id.misPuntos);
+        susPuntosTextView = (TextView) findViewById(R.id.susPuntos);
+        misJuegosTextView = (TextView) findViewById(R.id.misJuegos);
+        susJuegosTextView = (TextView) findViewById(R.id.susJuegos);
+        misSetsTextView = (TextView) findViewById(R.id.misSets);
+        susSetsTextView = (TextView) findViewById(R.id.susSets);
         timeContainer = (RelativeLayout) findViewById(R.id.relativelayout_contador_time_container);
         actualizaNumeros();
         View fondo = findViewById(R.id.fondo);
@@ -113,7 +132,7 @@ public class Contador extends WearableActivity {
             }
         });
 
-        misPuntos.setOnTouchListener(new View.OnTouchListener() {
+        misPuntosTextView.setOnTouchListener(new View.OnTouchListener() {
 
 
             GestureDetector detector = new DireccionesGestureDetector(
@@ -141,7 +160,7 @@ public class Contador extends WearableActivity {
             }
         });
 
-        susPuntos.setOnTouchListener(new View.OnTouchListener()
+        susPuntosTextView.setOnTouchListener(new View.OnTouchListener()
 
         {
             GestureDetector detector = new DireccionesGestureDetector(Contador.this, new DireccionesGestureDetector.SimpleOnDireccionesGestureListener() {
@@ -166,6 +185,8 @@ public class Contador extends WearableActivity {
                 return true;
             }
         });
+
+        mandarMensaje(WEAR_ARRANCAR_ACTIVIDAD, "");
     }
 
     @Override
@@ -176,6 +197,7 @@ public class Contador extends WearableActivity {
 
     @Override
     protected void onStop() {
+        Wearable.DataApi.removeListener(apiClient, this);
         if (apiClient != null && apiClient.isConnected()) {
             apiClient.disconnect();
         }
@@ -183,47 +205,47 @@ public class Contador extends WearableActivity {
     }
 
     void actualizaNumeros() {
-        misPuntos.setText(partida.getMisPuntos());
-        susPuntos.setText(partida.getSusPuntos());
-        misJuegos.setText(partida.getMisJuegos());
-        susJuegos.setText(partida.getSusJuegos());
-        misSets.setText(partida.getMisSets());
-        susSets.setText(partida.getSusSets());
+        misPuntosTextView.setText(partida.getMisPuntos());
+        susPuntosTextView.setText(partida.getSusPuntos());
+        misJuegosTextView.setText(partida.getMisJuegos());
+        susJuegosTextView.setText(partida.getSusJuegos());
+        misSetsTextView.setText(partida.getMisSets());
+        susSetsTextView.setText(partida.getSusSets());
     }
 
     @Override
     public void onEnterAmbient(Bundle ambientDetails) {
         super.onEnterAmbient(ambientDetails);
-        misPuntos.setTypeface(fuenteFina);
-        misPuntos.getPaint().setAntiAlias(false);
-        susPuntos.setTypeface(fuenteFina);
-        susPuntos.getPaint().setAntiAlias(false);
-        misJuegos.setTypeface(fuenteFina);
-        misJuegos.getPaint().setAntiAlias(false);
-        susJuegos.setTypeface(fuenteFina);
-        susJuegos.getPaint().setAntiAlias(false);
-        misSets.setTypeface(fuenteFina);
-        misSets.getPaint().setAntiAlias(false);
-        susSets.setTypeface(fuenteFina);
-        susSets.getPaint().setAntiAlias(false);
+        misPuntosTextView.setTypeface(fuenteFina);
+        misPuntosTextView.getPaint().setAntiAlias(false);
+        susPuntosTextView.setTypeface(fuenteFina);
+        susPuntosTextView.getPaint().setAntiAlias(false);
+        misJuegosTextView.setTypeface(fuenteFina);
+        misJuegosTextView.getPaint().setAntiAlias(false);
+        susJuegosTextView.setTypeface(fuenteFina);
+        susJuegosTextView.getPaint().setAntiAlias(false);
+        misSetsTextView.setTypeface(fuenteFina);
+        misSetsTextView.getPaint().setAntiAlias(false);
+        susSetsTextView.setTypeface(fuenteFina);
+        susSetsTextView.getPaint().setAntiAlias(false);
         timeContainer.setVisibility(View.VISIBLE);
     }
 
     @Override
     public void onExitAmbient() {
         super.onExitAmbient();
-        misPuntos.setTypeface(fuenteNormal);
-        misPuntos.getPaint().setAntiAlias(false);
-        susPuntos.setTypeface(fuenteNormal);
-        susPuntos.getPaint().setAntiAlias(false);
-        misJuegos.setTypeface(fuenteNormal);
-        misJuegos.getPaint().setAntiAlias(false);
-        susJuegos.setTypeface(fuenteNormal);
-        susJuegos.getPaint().setAntiAlias(false);
-        misSets.setTypeface(fuenteNormal);
-        misSets.getPaint().setAntiAlias(false);
-        susSets.setTypeface(fuenteNormal);
-        susSets.getPaint().setAntiAlias(false);
+        misPuntosTextView.setTypeface(fuenteNormal);
+        misPuntosTextView.getPaint().setAntiAlias(false);
+        susPuntosTextView.setTypeface(fuenteNormal);
+        susPuntosTextView.getPaint().setAntiAlias(false);
+        misJuegosTextView.setTypeface(fuenteNormal);
+        misJuegosTextView.getPaint().setAntiAlias(false);
+        susJuegosTextView.setTypeface(fuenteNormal);
+        susJuegosTextView.getPaint().setAntiAlias(false);
+        misSetsTextView.setTypeface(fuenteNormal);
+        misSetsTextView.getPaint().setAntiAlias(false);
+        susSetsTextView.setTypeface(fuenteNormal);
+        susSetsTextView.getPaint().setAntiAlias(false);
         timeContainer.setVisibility(View.GONE);
     }
 
@@ -231,13 +253,77 @@ public class Contador extends WearableActivity {
     private void sincronizaDatos() {
         Log.d("Padel Wear", "Sincronizando");
         PutDataMapRequest putDataMapReq = PutDataMapRequest.create(WEAR_PUNTUACION);
-        putDataMapReq.getDataMap().putInt(KEY_MIS_PUNTOS, Integer.parseInt(partida.getMisPuntos()));
-        putDataMapReq.getDataMap().putInt(KEY_MIS_JUEGOS, Integer.parseInt(partida.getMisJuegos()));
-        putDataMapReq.getDataMap().putInt(KEY_MIS_SETS, Integer.parseInt(partida.getMisSets()));
-        putDataMapReq.getDataMap().putInt(KEY_SUS_PUNTOS, Integer.parseInt(partida.getSusPuntos()));
-        putDataMapReq.getDataMap().putInt(KEY_SUS_JUEGOS, Integer.parseInt(partida.getSusJuegos()));
-        putDataMapReq.getDataMap().putInt(KEY_SUS_SETS, Integer.parseInt(partida.getSusSets()));
+//        if (partida.getMisPuntos().equals("-") || partida.getSusPuntos().equals("-")) {
+//            putDataMapReq.getDataMap().putBoolean(KEY_PROCESA_STRING, true);
+//        } else {
+//            putDataMapReq.getDataMap().putBoolean(KEY_PROCESA_STRING, true);
+//        }
+        putDataMapReq.getDataMap().putString(KEY_MIS_PUNTOS, partida.getMisPuntos());
+        putDataMapReq.getDataMap().putString(KEY_MIS_JUEGOS, partida.getMisJuegos());
+        putDataMapReq.getDataMap().putString(KEY_MIS_SETS, partida.getMisSets());
+        putDataMapReq.getDataMap().putString(KEY_SUS_PUNTOS, partida.getSusPuntos());
+        putDataMapReq.getDataMap().putString(KEY_SUS_JUEGOS, partida.getSusJuegos());
+        putDataMapReq.getDataMap().putString(KEY_SUS_SETS, partida.getSusSets());
         PutDataRequest putDataReq = putDataMapReq.asPutDataRequest();
         Wearable.DataApi.putDataItem(apiClient, putDataReq);
+    }
+
+    private void mandarMensaje(final String path, final String texto) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                NodeApi.GetConnectedNodesResult nodos = Wearable.NodeApi.getConnectedNodes(apiClient).await();
+                for (Node nodo : nodos.getNodes()) {
+                    Wearable.MessageApi.sendMessage(apiClient, nodo.getId(), path, texto.getBytes()).setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
+                        @Override
+                        public void onResult(MessageApi.SendMessageResult resultado) {
+                            if (!resultado.getStatus().isSuccess()) {
+                                Log.e("sincronizacion", "Error al mandar mensaje. Código:" + resultado.getStatus().getStatusCode());
+                            }
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        Wearable.DataApi.addListener(apiClient, this);
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEventBuffer) {
+        for (DataEvent evento : dataEventBuffer) {
+            if (evento.getType() == DataEvent.TYPE_CHANGED) {
+                DataItem item = evento.getDataItem();
+                if (item.getUri().getPath().equals(WEAR_PUNTUACION)) {
+                    DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
+                    misPuntos = dataMap.getString(KEY_MIS_PUNTOS);
+                    misJuegos = dataMap.getString(KEY_MIS_JUEGOS);
+                    misSets = dataMap.getString(KEY_MIS_SETS);
+                    susPuntos = dataMap.getString(KEY_SUS_PUNTOS);
+                    susJuegos = dataMap.getString(KEY_SUS_JUEGOS);
+                    susSets = dataMap.getString(KEY_SUS_SETS);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            misPuntosTextView.setText(misPuntos);
+                            susPuntosTextView.setText(susPuntos);
+                            misJuegosTextView.setText(misJuegos);
+                            susJuegosTextView.setText(susJuegos);
+                            misSetsTextView.setText(misSets);
+                            susSetsTextView.setText(susSets);
+                        }
+                    });
+                }
+            } else if (evento.getType() == DataEvent.TYPE_DELETED) { // Algún ítem ha sido borrado } }
+            }
+        }
     }
 }

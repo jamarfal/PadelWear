@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.os.Vibrator;
 import android.support.annotation.Nullable;
 import android.support.v4.app.DialogFragment;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
@@ -24,6 +25,8 @@ import com.google.android.gms.wearable.DataItem;
 import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
 /**
@@ -31,6 +34,7 @@ import com.google.android.gms.wearable.Wearable;
  */
 
 public class Contador extends Activity implements DataApi.DataListener, GoogleApiClient.ConnectionCallbacks {
+
     private Partida partida;
     private TextView misPuntosTextView, misJuegosTextView, misSetsTextView, susPuntosTextView, susJuegosTextView, susSetsTextView;
     private Vibrator vibrador;
@@ -39,6 +43,7 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
 
     private GoogleApiClient apiClient;
 
+    public static final String KEY_PROCESA_STRING = "procesa_string";
     private static final String WEAR_PUNTUACION = "/puntuacion";
     private static final String KEY_MIS_PUNTOS = "com.example.padel.key.mis_puntos";
     private static final String KEY_MIS_JUEGOS = "com.example.padel.key.mis_juegos";
@@ -46,12 +51,12 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
     private static final String KEY_SUS_PUNTOS = "com.example.padel.key.sus_puntos";
     private static final String KEY_SUS_JUEGOS = "com.example.padel.key.sus_juegos";
     private static final String KEY_SUS_SETS = "com.example.padel.key.sus_sets";
-    private int misPuntos;
-    private int misJuegos;
-    private int misSets;
-    private int susPuntos;
-    private int susJuegos;
-    private int susSets;
+    private String misPuntos;
+    private String misJuegos;
+    private String misSets;
+    private String susPuntos;
+    private String susJuegos;
+    private String susSets;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +81,7 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
                 @Override
                 public boolean onArriba(MotionEvent e1, MotionEvent e2, float distX, float distY) {
                     partida.rehacerPunto();
+                    sincronizaDatos();
                     vibrador.vibrate(vibrDeshacer, -1);
                     actualizaNumeros();
                     return true;
@@ -84,6 +90,7 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
                 @Override
                 public boolean onAbajo(MotionEvent e1, MotionEvent e2, float distX, float distY) {
                     partida.deshacerPunto();
+                    sincronizaDatos();
                     vibrador.vibrate(vibrDeshacer, -1);
                     actualizaNumeros();
                     return true;
@@ -103,6 +110,7 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
                     partida.puntoPara(true);
                     vibrador.vibrate(vibrEntrada, -1);
                     actualizaNumeros();
+                    sincronizaDatos();
                     return true;
                 }
             });
@@ -120,6 +128,7 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
                     partida.puntoPara(false);
                     vibrador.vibrate(vibrEntrada, -1);
                     actualizaNumeros();
+                    sincronizaDatos();
                     return true;
                 }
             });
@@ -138,21 +147,21 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
                 for (DataItem dataItem : dataItems) {
                     if (dataItem.getUri().getPath().equals(WEAR_PUNTUACION)) {
                         DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
-                        misPuntos = dataMap.getInt(KEY_MIS_PUNTOS);
-                        misJuegos = dataMap.getInt(KEY_MIS_JUEGOS);
-                        misSets = dataMap.getInt(KEY_MIS_SETS);
-                        susPuntos = dataMap.getInt(KEY_SUS_PUNTOS);
-                        susJuegos = dataMap.getInt(KEY_SUS_JUEGOS);
-                        susSets = dataMap.getInt(KEY_SUS_SETS);
+                        misPuntos = dataMap.getString(KEY_MIS_PUNTOS);
+                        misJuegos = dataMap.getString(KEY_MIS_JUEGOS);
+                        misSets = dataMap.getString(KEY_MIS_SETS);
+                        susPuntos = dataMap.getString(KEY_SUS_PUNTOS);
+                        susJuegos = dataMap.getString(KEY_SUS_JUEGOS);
+                        susSets = dataMap.getString(KEY_SUS_SETS);
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                misPuntosTextView.setText(String.valueOf(misPuntos));
-                                susPuntosTextView.setText(String.valueOf(susPuntos));
-                                misJuegosTextView.setText(String.valueOf(misJuegos));
-                                susJuegosTextView.setText(String.valueOf(susJuegos));
-                                misSetsTextView.setText(String.valueOf(misSets));
-                                susSetsTextView.setText(String.valueOf(susSets));
+                                misPuntosTextView.setText(misPuntos);
+                                susPuntosTextView.setText(susPuntos);
+                                misJuegosTextView.setText(misJuegos);
+                                susJuegosTextView.setText(susJuegos);
+                                misSetsTextView.setText(misSets);
+                                susSetsTextView.setText(susSets);
                             }
                         });
                     }
@@ -193,21 +202,25 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
                 DataItem item = evento.getDataItem();
                 if (item.getUri().getPath().equals(WEAR_PUNTUACION)) {
                     DataMap dataMap = DataMapItem.fromDataItem(item).getDataMap();
-                    misPuntos = dataMap.getInt(KEY_MIS_PUNTOS);
-                    misJuegos = dataMap.getInt(KEY_MIS_JUEGOS);
-                    misSets = dataMap.getInt(KEY_MIS_SETS);
-                    susPuntos = dataMap.getInt(KEY_SUS_PUNTOS);
-                    susJuegos = dataMap.getInt(KEY_SUS_JUEGOS);
-                    susSets = dataMap.getInt(KEY_SUS_SETS);
+                    boolean debeProcesarString = dataMap.getBoolean(KEY_PROCESA_STRING);
+                    if (debeProcesarString) {
+
+                    }
+                    misPuntos = dataMap.getString(KEY_MIS_PUNTOS);
+                    misJuegos = dataMap.getString(KEY_MIS_JUEGOS);
+                    misSets = dataMap.getString(KEY_MIS_SETS);
+                    susPuntos = dataMap.getString(KEY_SUS_PUNTOS);
+                    susJuegos = dataMap.getString(KEY_SUS_JUEGOS);
+                    susSets = dataMap.getString(KEY_SUS_SETS);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            misPuntosTextView.setText(String.valueOf(misPuntos));
-                            susPuntosTextView.setText(String.valueOf(susPuntos));
-                            misJuegosTextView.setText(String.valueOf(misJuegos));
-                            susJuegosTextView.setText(String.valueOf(susJuegos));
-                            misSetsTextView.setText(String.valueOf(misSets));
-                            susSetsTextView.setText(String.valueOf(susSets));
+                            misPuntosTextView.setText(misPuntos);
+                            susPuntosTextView.setText(susPuntos);
+                            misJuegosTextView.setText(misJuegos);
+                            susJuegosTextView.setText(susJuegos);
+                            misSetsTextView.setText(misSets);
+                            susSetsTextView.setText(susSets);
                         }
                     });
                 }
@@ -224,5 +237,23 @@ public class Contador extends Activity implements DataApi.DataListener, GoogleAp
     @Override
     public void onConnectionSuspended(int i) {
 
+    }
+
+    private void sincronizaDatos() {
+        Log.d("Padel Wear", "Sincronizando");
+        PutDataMapRequest putDataMapReq = PutDataMapRequest.create(WEAR_PUNTUACION);
+//        if(partida.getMisPuntos().equals("-") || partida.getSusPuntos().equals("-")){
+//            putDataMapReq.getDataMap().putBoolean(KEY_PROCESA_STRING, true);
+//        }else{
+//            putDataMapReq.getDataMap().putBoolean(KEY_PROCESA_STRING, true);
+//        }
+        putDataMapReq.getDataMap().putString(KEY_MIS_PUNTOS, partida.getMisPuntos());
+        putDataMapReq.getDataMap().putString(KEY_MIS_JUEGOS, partida.getMisJuegos());
+        putDataMapReq.getDataMap().putString(KEY_MIS_SETS, partida.getMisSets());
+        putDataMapReq.getDataMap().putString(KEY_SUS_PUNTOS, partida.getSusPuntos());
+        putDataMapReq.getDataMap().putString(KEY_SUS_JUEGOS, partida.getSusJuegos());
+        putDataMapReq.getDataMap().putString(KEY_SUS_SETS, partida.getSusSets());
+        PutDataRequest putDataReq = putDataMapReq.asPutDataRequest();
+        Wearable.DataApi.putDataItem(apiClient, putDataReq);
     }
 }
